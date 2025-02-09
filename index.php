@@ -29,7 +29,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (stripos($username, "'") !== false || stripos($username, "OR") !== false || stripos($password, "'") !== false) {
             echo "<script>
                 alert('⚠ WARNING: You have logged in as Hacked Admin!');
-                window.location.href = 'admin/dashboard.php';
+                window.location.href = 'dashboard.php';
             </script>";
         } else {
             echo "<script>window.location.href = 'dashboard.php';</script>";
