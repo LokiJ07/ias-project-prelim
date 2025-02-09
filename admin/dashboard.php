@@ -5,9 +5,14 @@ require_once "../db/config.php";
 // Initialize the session
 session_start();
 
+// 🚀 Fix: Ensure `$pdo` is set correctly
+if (!isset($pdo)) {
+    die("Database connection failed. Check config.php.");
+}
+
 // Check if the user is logged in, if not then redirect them to the login page
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
-    header("location:./index.php");
+    header("location: ../index.php");
     exit;
 }
 
@@ -16,46 +21,39 @@ function getUserStatistics($pdo) {
     $stats = [
         "admin" => 0,
         "user" => 0,
-        "temp-user" => 0, // Assuming 'temp-user' is stored in the database
+        "temp-user" => 0,
         "total" => 0
     ];
 
     $sql = "SELECT user_type, COUNT(*) as count FROM users GROUP BY user_type";
-    if ($stmt = $pdo->prepare($sql)) {
-        if ($stmt->execute()) {
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $stats[$row["user_type"]] = $row["count"];
-            }
+    $stmt = $pdo->prepare($sql); // ✅ Fix: Ensure `$pdo` is used
+    if ($stmt->execute()) {
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $stats[$row["user_type"]] = $row["count"];
         }
-        unset($stmt);
     }
 
-    // Total users (admin + user + temp-user)
     $stats["total"] = array_sum($stats);
     return $stats;
 }
 
-// Fetch user statistics
+// 🚀 Fix: Make sure `$pdo` is passed to function
 $userStats = getUserStatistics($pdo);
 
 // Fetch user accounts
 $userAccounts = [];
 $sql = "SELECT username, user_type, created_at FROM users ORDER BY created_at DESC";
-if ($stmt = $pdo->prepare($sql)) {
-    if ($stmt->execute()) {
-        $userAccounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-    unset($stmt);
+$stmt = $pdo->prepare($sql);
+if ($stmt->execute()) {
+    $userAccounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // Fetch recent logins
 $recentLogins = [];
 $sql = "SELECT u.username, u.user_type, l.login_time FROM login_logs l JOIN users u ON l.user_id = u.id ORDER BY l.login_time DESC LIMIT 10";
-if ($stmt = $pdo->prepare($sql)) {
-    if ($stmt->execute()) {
-        $recentLogins = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-    unset($stmt);
+$stmt = $pdo->prepare($sql);
+if ($stmt->execute()) {
+    $recentLogins = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 ?>
 
