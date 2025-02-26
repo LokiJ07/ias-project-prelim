@@ -1,34 +1,62 @@
 <?php
 // Include config file
 require_once "db/config.php";
-
-// Initialize the session
 session_start();
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
+function detectSQLInjection($input) {
+    $patterns = [
+        "/(\bUNION\b|\bSELECT\b|\bINSERT\b|\bDELETE\b|\bUPDATE\b|\bDROP\b|\bALTER\b)/i",
+        "/(\bOR\b|\bAND\b)\s+\d+=\d+/i",
+        "/(--|#|;|\*|\/\*)/",
+        "/(xp_cmdshell|exec|sp_|dbo\.)/i"
+    ];
 
-    // SQL Injection vulnerability (for testing)
-    $sql = "SELECT * FROM users WHERE username = '$username' AND password = '$password'";
-    $stmt = $pdo->query($sql); // Using PDO
-
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if ($user) {
-        $_SESSION["loggedin"] = true;
-        $_SESSION["id"] = $user["id"];
-        $_SESSION["username"] = $user["username"];
-        $_SESSION["user_type"] = $user["user_type"];
-
-        if ($user["user_type"] == "admin") {
-            header("Location: admin/dashboard.php"); // Redirect to admin dashboard
-        } else {
-            header("Location: user/home.php"); // Redirect to user home
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $input)) {
+            return true;
         }
-        exit;
+    }
+    return false;
+}
+
+// Log SQL injection attempts
+function logHackerAttempt($username, $ip) {
+    $file = "hacker_logs.txt";
+    $logEntry = date("Y-m-d H:i:s") . " - Suspicious login attempt from IP: $ip - Username: $username\n";
+    file_put_contents($file, $logEntry, FILE_APPEND);
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $username = $_POST["username"];
+    $password = $_POST["password"];
+    $userIP = $_SERVER["REMOTE_ADDR"]; // Get the hacker's IP address
+
+    // Check for SQL injection
+    if (detectSQLInjection($username) || detectSQLInjection($password)) {
+        logHackerAttempt($username, $userIP);
+        echo "<script>alert('⚠️ WARNING: SQL Injection detected! Admin has been notified.');</script>";
     } else {
-        $login_err = "Invalid username or password.";
+        // Secure login query using PDO
+        $sql = "SELECT * FROM users WHERE username = :username";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(['username' => $username]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($user && password_verify($password, $user['password'])) {
+            $_SESSION["loggedin"] = true;
+            $_SESSION["id"] = $user["id"];
+            $_SESSION["username"] = $user["username"];
+            $_SESSION["user_type"] = $user["user_type"];
+
+            if ($user["user_type"] == "admin") {
+                header("Location: admin/dashboard.php");
+            } else {
+                header("Location: user/home.php");
+            }
+            exit;
+        } else {
+            echo "Invalid username or password.";
+        }
     }
 }
 ?>
