@@ -19,21 +19,21 @@ function detectSQLInjection($input) {
     return false;
 }
 
-// Log SQL injection attempts
-function logHackerAttempt($username, $ip) {
-    $file = "hacker_logs.txt";
-    $logEntry = date("Y-m-d H:i:s") . " - Suspicious login attempt from IP: $ip - Username: $username\n";
-    file_put_contents($file, $logEntry, FILE_APPEND);
+// Log SQL injection attempts to the database
+function logHackerAttempt($pdo, $username, $ip) {
+    $sql = "INSERT INTO hacker_logs (username, ip_address) VALUES (:username, :ip)";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(['username' => $username, 'ip' => $ip]);
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = $_POST["username"];
     $password = $_POST["password"];
-    $userIP = $_SERVER["REMOTE_ADDR"]; // Get the hacker's IP address
+    $userIP = $_SERVER["REMOTE_ADDR"]; // Get the attacker's IP address
 
     // Check for SQL injection
     if (detectSQLInjection($username) || detectSQLInjection($password)) {
-        logHackerAttempt($username, $userIP);
+        logHackerAttempt($pdo, $username, $userIP);
         echo "<script>alert('⚠️ WARNING: SQL Injection detected! Admin has been notified.');</script>";
     } else {
         // Secure login query using PDO

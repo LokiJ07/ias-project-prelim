@@ -5,7 +5,7 @@ require_once "../db/config.php";
 // Initialize the session
 session_start();
 
-// 🚀 Fix: Ensure `$pdo` is set correctly
+// 🚀 Ensure `$pdo` is set
 if (!isset($pdo)) {
     die("Database connection failed. Check config.php.");
 }
@@ -26,7 +26,7 @@ function getUserStatistics($pdo) {
     ];
 
     $sql = "SELECT user_type, COUNT(*) as count FROM users GROUP BY user_type";
-    $stmt = $pdo->prepare($sql); // ✅ Fix: Ensure `$pdo` is used
+    $stmt = $pdo->prepare($sql);
     if ($stmt->execute()) {
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $stats[$row["user_type"]] = $row["count"];
@@ -37,23 +37,32 @@ function getUserStatistics($pdo) {
     return $stats;
 }
 
-// 🚀 Fix: Make sure `$pdo` is passed to function
+// 🚀 Fetch user statistics
 $userStats = getUserStatistics($pdo);
+
+// 🚀 Fetch hacker attempts (last 5)
+$sql = "SELECT * FROM hacker_logs ORDER BY attempted_at DESC LIMIT 5";
+$stmt = $pdo->query($sql);
+$hackerAttempts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch user accounts
 $userAccounts = [];
 $sql = "SELECT username, user_type, created_at FROM users ORDER BY created_at DESC";
-$stmt = $pdo->prepare($sql);
-if ($stmt->execute()) {
-    $userAccounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+if ($stmt = $pdo->prepare($sql)) {
+    if ($stmt->execute()) {
+        $userAccounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    unset($stmt);
 }
 
 // Fetch recent logins
 $recentLogins = [];
 $sql = "SELECT u.username, u.user_type, l.login_time FROM login_logs l JOIN users u ON l.user_id = u.id ORDER BY l.login_time DESC LIMIT 10";
-$stmt = $pdo->prepare($sql);
-if ($stmt->execute()) {
-    $recentLogins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+if ($stmt = $pdo->prepare($sql)) {
+    if ($stmt->execute()) {
+        $recentLogins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    unset($stmt);
 }
 ?>
 
@@ -65,7 +74,7 @@ if ($stmt->execute()) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
+  
     <style>
         .flex-container {
             display: flex;
@@ -82,49 +91,32 @@ if ($stmt->execute()) {
             text-align: center;
         }
     </style>
+
+    <script>
+        function showAlert(message) {
+            alert(message);
+        }
+    </script>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
         <div class="container-fluid">
             <a class="navbar-brand" href="dashboard.php">Home</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <!--
-                    <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="#">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">Link</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            Dropdown
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#">Action</a></li>
-                            <li><a class="dropdown-item" href="#">Another action</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#">Something else here</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link disabled" aria-disabled="true">Disabled</a>
-                    </li>
-                    -->
-                </ul>
-                <form class="d-flex" role="search">
-                    <a href="../logout.php" class="btn btn-danger">Logout</a>
-                </form>
-            </div>
+            <a href="../logout.php" class="btn btn-danger">Logout</a>
         </div>
     </nav>
+
     <h1 style="margin-left:20px">Hi, <b><?php echo htmlspecialchars($_SESSION["username"]); ?></b>. Welcome to the dashboard.</h1>
-    
-    <!--Start Dashboard-->
-    <div class="flex-container">
+
+    <!-- 🚨 Hacker Alert Popup -->
+    <?php if (!empty($hackerAttempts)): ?>
+        <script>
+            showAlert("⚠️ WARNING: SQL Injection Attempt Detected! Check the logs.");
+        </script>
+    <?php endif; ?>
+   
+     <!--Start Dashboard-->
+     <div class="flex-container">
         <!-- Card 1: Total Admin Users -->
         <div class="card text-bg-success mb-3">
             <div class="card-body">
@@ -253,5 +245,29 @@ if ($stmt->execute()) {
         });
     }
 </script>
+
+    <div class="container">
+        <h3>Hacker Alerts</h3>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>IP Address</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($hackerAttempts as $attempt): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($attempt["username"]); ?></td>
+                        <td><?php echo htmlspecialchars($attempt["ip_address"]); ?></td>
+                        <td><?php echo htmlspecialchars($attempt["attempted_at"]); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    
+
 </body>
 </html>
